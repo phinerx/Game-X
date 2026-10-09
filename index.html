@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Survival Shooter</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #111; color: white; font-family: sans-serif; }
+        canvas { display: block; cursor: crosshair; }
+        #ui { position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">Score: <span id="scoreEl">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        const scoreEl = document.getElementById('scoreEl');
+
+        // Player (The white circle in the middle)
+        class Player {
+            constructor(x, y, radius, color) {
+                this.x = x; this.y = y; this.radius = radius; this.color = color;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        // Projectiles (Your bullets)
+        class Projectile {
+            constructor(x, y, radius, color, velocity) {
+                this.x = x; this.y = y; this.radius = radius; this.color = color; this.velocity = velocity;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+            update() {
+                this.draw();
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+            }
+        }
+
+        // Enemies (Incoming targets)
+        class Enemy {
+            constructor(x, y, radius, color, velocity) {
+                this.x = x; this.y = y; this.radius = radius; this.color = color; this.velocity = velocity;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+            update() {
+                this.draw();
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+            }
+        }
+
+        let player = new Player(canvas.width / 2, canvas.height / 2, 15, 'white');
+        let projectiles = [];
+        let enemies = [];
+        let animationId;
+
+        // Spawn enemies continuously from off-screen
+        function spawnEnemies() {
+            setInterval(() => {
+                const radius = Math.random() * (30 - 10) + 10;
+                let ex, ey;
+                
+                // Spawn randomly on the edges
+                if (Math.random() < 0.5) {
+                    ex = Math.random() < 0.5 ? 0 - radius : canvas.width + radius;
+                    ey = Math.random() * canvas.height;
+                } else {
+                    ex = Math.random() * canvas.width;
+                    ey = Math.random() < 0.5 ? 0 - radius : canvas.height + radius;
+                }
+                
+                const color = `hsl(${Math.random() * 360}, 50%, 50%)`;
+                const angle = Math.atan2(canvas.height / 2 - ey, canvas.width / 2 - ex);
+                const velocity = { x: Math.cos(angle) * 1.5, y: Math.sin(angle) * 1.5 };
+                
+                enemies.push(new Enemy(ex, ey, radius, color, velocity));
+            }, 1000);
+        }
+
+        // Click to shoot
+        canvas.addEventListener('click', (event) => {
+            const angle = Math.atan2(event.clientY - canvas.height / 2, event.clientX - canvas.width / 2);
+            const velocity = { x: Math.cos(angle) * 6, y: Math.sin(angle) * 6 };
+            projectiles.push(new Projectile(canvas.width / 2, canvas.height / 2, 5, 'yellow', velocity));
+        });
+
+        // Main game loop
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            // Gives the screen a cool trailing effect instead of clearing it completely
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            player.draw();
+
+            // Update bullets
+            projectiles.forEach((projectile, index) => {
+                projectile.update();
+                // Remove bullets that go off-screen
+                if (projectile.x < 0 || projectile.x > canvas.width || projectile.y < 0 || projectile.y > canvas.height) {
+                    setTimeout(() => projectiles.splice(index, 1), 0);
+                }
+            });
+
+            // Update enemies and check collisions
+            enemies.forEach((enemy, index) => {
+                enemy.update();
+                
+                // End game if enemy touches player
+                const distToPlayer = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+                if (distToPlayer - enemy.radius - player.radius < 1) { 
+                    cancelAnimationFrame(animationId);
+                    alert(`Game Over! Final Score: ${score}. Refresh the page to restart.`);
+                }
+
+                // Check if a bullet hit an enemy
+                projectiles.forEach((projectile, pIndex) => {
+                    const distToBullet = Math.hypot(projectile.x - enemy.x, projectile.y - enemy.y);
+                    if (distToBullet - enemy.radius - projectile.radius < 1) {
+                        setTimeout(() => {
+                            enemies.splice(index, 1);
+                            projectiles.splice(pIndex, 1);
+                            score += 10;
+                            scoreEl.innerHTML = score;
+                        }, 0);
+                    }
+                });
+            });
+        }
+
+        // Keep player centered if window is resized
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+        });
+
+        animate();
+        spawnEnemies();
+    </script>
+</body>
+</html>
